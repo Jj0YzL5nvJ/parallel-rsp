@@ -1,5 +1,6 @@
 #!/bin/sh
 
+git clone --depth 1 https://github.com/mupen64plus/mupen64plus-core.git ../mupen64plus-core
 mkdir -p build-linux
 cd build-linux
 #export CC=clang-8
