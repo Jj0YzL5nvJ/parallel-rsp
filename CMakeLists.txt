@@ -3,13 +3,21 @@ set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_C_STANDARD 99)
 project(parallel-rsp LANGUAGES CXX C)
 
+set(NAME_PLUGIN_M64P "mupen64plus-rsp-parallel")
+
+add_definitions(-DM64P_PLUGIN_API)
+add_definitions(-DPARALLEL_INTEGRATION)
+
 if (CMAKE_COMPILER_IS_GNUCXX OR (${CMAKE_CXX_COMPILER_ID} MATCHES "Clang"))
-    set(PARALLEL_RSP_CXX_FLAGS -Wall -Wextra -Wno-missing-field-initializers -Wno-empty-body -ffast-math -Wno-unused-parameter)
+	set(PARALLEL_RSP_CXX_FLAGS -Wall -Wextra -Wno-missing-field-initializers -Wno-empty-body -ffast-math -Wno-unused-parameter)
 elseif (MSVC)
-    set(PARALLEL_RSP_CXX_FLAGS /D_CRT_SECURE_NO_WARNINGS /wd4267 /wd4244 /wd4309 /wd4005 /MP /DNOMINMAX)
+	set(PARALLEL_RSP_CXX_FLAGS /D_CRT_SECURE_NO_WARNINGS /wd4267 /wd4244 /wd4309 /wd4005 /MP /DNOMINMAX)
 endif()
 
-add_library(parallel-rsp STATIC
+add_library(${NAME_PLUGIN_M64P} SHARED
+		#main.cpp
+		parallel.cpp
+		#debug_rsp.cpp
 		rsp/vfunctions.cpp
 		rsp_jit.cpp rsp_jit.hpp
 		jit_allocator.cpp jit_allocator.hpp
@@ -49,24 +57,25 @@ add_library(parallel-rsp STATIC
 		arch/simd/rsp/vxor.h
 		arch/simd/rsp/vmulm.h)
 
-option(PARALLEL_RSP_DEBUG_JIT "Enable the debug JIT." ON)
+option(PARALLEL_RSP_DEBUG_JIT "Enable the debug JIT." OFF)
 
 if (PARALLEL_RSP_DEBUG_JIT)
 	if (ANDROID)
 		message("Android does not support debug JIT. Disabling it.")
 	elseif (NOT WIN32)
-		target_sources(parallel-rsp PRIVATE debug_rsp.cpp debug_rsp.hpp debug_jit.cpp debug_jit.hpp)
-		target_compile_definitions(parallel-rsp PUBLIC PARALLEL_RSP_DEBUG_JIT)
+		target_sources(${NAME_PLUGIN_M64P} PRIVATE debug_rsp.cpp debug_rsp.hpp debug_jit.cpp debug_jit.hpp)
+		target_compile_definitions(${NAME_PLUGIN_M64P} PUBLIC PARALLEL_RSP_DEBUG_JIT)
 	endif()
 endif()
 
-target_include_directories(parallel-rsp PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
-target_include_directories(parallel-rsp PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/arch/simd/rsp)
-target_compile_options(parallel-rsp PRIVATE ${PARALLEL_RSP_CXX_FLAGS})
+target_include_directories(${NAME_PLUGIN_M64P} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_include_directories(${NAME_PLUGIN_M64P} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/arch/simd/rsp)
+target_include_directories(${NAME_PLUGIN_M64P} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/../mupen64plus-core/src/api)
+target_compile_options(${NAME_PLUGIN_M64P} PRIVATE ${PARALLEL_RSP_CXX_FLAGS})
 
 option(PARALLEL_RSP_BAKED_LIGHTNING "Use built-in Lightning." ON)
 
-target_compile_definitions(parallel-rsp PUBLIC PARALLEL_RSP_LIGHTNING)
+target_compile_definitions(${NAME_PLUGIN_M64P} PUBLIC PARALLEL_RSP_LIGHTNING)
 if (PARALLEL_RSP_BAKED_LIGHTNING)
 	add_library(lightning STATIC
 			lightning/lib/jit_disasm.c
@@ -83,15 +92,15 @@ if (PARALLEL_RSP_BAKED_LIGHTNING)
 		target_include_directories(lightning PRIVATE win32/mman)
 	endif()
 endif()
-target_link_libraries(parallel-rsp PUBLIC lightning)
-target_compile_definitions(parallel-rsp PUBLIC DEBUG_JIT)
+target_link_libraries(${NAME_PLUGIN_M64P} PUBLIC lightning)
+#target_compile_definitions(${NAME_PLUGIN_M64P} PUBLIC DEBUG_JIT)
 
 if (NOT WIN32)
-	target_link_libraries(parallel-rsp PRIVATE dl)
+	target_link_libraries(${NAME_PLUGIN_M64P} PRIVATE dl)
 endif()
 
 add_executable(rsp-runner main.cpp)
-target_link_libraries(rsp-runner PRIVATE parallel-rsp)
+target_link_libraries(rsp-runner PRIVATE ${NAME_PLUGIN_M64P})
 target_compile_options(rsp-runner PRIVATE ${PARALLEL_RSP_CXX_FLAGS})
 
 if (PARALLEL_RSP_DEBUG_JIT AND NOT WIN32)
@@ -101,7 +110,7 @@ endif()
 option(PARALLEL_RSP_TESTS "Enable unit tests for Lightning CPU." ON)
 
 add_executable(rsp-vu-fuzzer rsp_vu_fuzzer.cpp)
-target_link_libraries(rsp-vu-fuzzer PRIVATE parallel-rsp)
+target_link_libraries(rsp-vu-fuzzer PRIVATE ${NAME_PLUGIN_M64P})
 target_compile_options(rsp-vu-fuzzer PRIVATE ${PARALLEL_RSP_CXX_FLAGS})
 
 if (PARALLEL_RSP_TESTS)
